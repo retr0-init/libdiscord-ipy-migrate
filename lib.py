@@ -1,6 +1,5 @@
 '''
-Discord-Bot-Library template. For detailed usages,
- check https://interactions-py.github.io/interactions.py/
+libdiscord-ipy-migrate
 
 Copyright (C) 2024  __retr0.init__
 
@@ -17,124 +16,143 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
-import asyncio
-import time
-from typing import Optional, Any
-from enum import Enum, unique
+import interactions
+from typing import Optional, cast, Union
 
-# Use the following method to import the internal module in the current same directory
-from . import internal_t
+webhook_name: str = "DBF"
+webhook_avatar: interactions.Absent[interactions.UPLOADABLE_TYPE] = interactions.MISSING
 
-# Use the following method to import functions from the other module or library
-# There are some ugly package-module-class definitions to act as an import error fallback
-## The line following import the function to parse the module Git URL to the module name
-from src.moduleutil import giturl_parse
-from importlib import import_module
-from types import ModuleType
-try:
-    url, modname, validated = giturl_parse("https://github.com/retr0-init/Discord-Bot-Framework-Library-Template.git")
-    if validated:
-        library_package: ModuleType = import_module(f"...{modname}", package=__name__)
-    # Equivalent to:
-    # from .. import com_d_github__Discord_h_Discord_h_Bot_h_Framework_h_Library_h_Template as library_package
-except ImportError:
-    print("The external library module does not exist! Please load the library module at first!")
-    class library_package_def:
-        def __init__(self) -> None:
-            library_module = self.library_module_def()
-            return None
-        class library_module_def:
-            pi: float = 3.1415926
-            mut_list: list[str] = []
-            def __init__(self) -> None:
-                return None
-            def sync_func(self, *a, **k) -> None:
-                return None
-            async def async_func(self, *a, **k) -> None:
-                return None
-            class ExampleLibrary:
-                a = []
-                b = 0
-                def __init__(self, *a, **k) -> None:
-                    return None
-                def append(self, *a, **k) -> None:
-                    return None
-                async def get_b(self, *a, **k) -> None:
-                    return None
-    library_package = library_package_def()
+async def fetch_create_webhook(dest_chan: interactions.WebhookMixin) -> interactions.Webhook:
+    """
+    Fetch the webhook from a destination channel. If not exist, create one.
 
-'''
-A constant variable
-'''
-pi: float = 3.141592654
+    Parameters:
+        dest_chan   WebhookMixin    Destination channel
 
-'''
-A mutable variable
-'''
-mut_list: list[str] = []
+    Return:
+        webhook     Webhook         Fetched webhook
+    """
+    dest_chan: interactions.WebhookMixin = cast(interactions.WebhookMixin, dest_chan)
+    webhooks: list[interactions.Webhook] = await dest_chan.fetch_webhooks()
+    available_webhooks: list[interactions.Webhook] = [wh for wh in webhooks if wh.name == webhook_name and wh.type == interactions.WebhookTypes.APPLICATION]
+    if len(available_webhooks) == 0:
+        webhook: interactions.Webhook = await dest_chan.create_webhook(name=webhook_name, avatar=webhook_avatar)
+    else:
+        webhook: interactions.Webhook = available_webhooks[0]
+    
+    return webhook
 
-'''
-An integer Enum for the other usage
-'''
-@unique
-class ExampleEnum(int, Enum):
-    Ex1 = 1
-    Ex2 = 10
-    Ex3 = 100
+async def migrate_message(orig_msg: interactions.Message, dest_chan: interactions.GuildChannel, thread_id: Optional[int] = None) -> tuple[bool, Optional[int]]:
+    """
+    Migrate a message to target channel. Only supports GuildText and GuildForum
 
-'''
-A standalone synchronous function definition
-'''
-def sync_func(t: float) -> None:
-    print(f"Synchronously Sleep for {t} seconds...")
-    time.sleep(t)
+    Parameters:
+        orig_msg    Message         The original message object
+        dest_chan   GuildChannel    Destination channel
+        thread_id   Optional[int]   (Default: None) Destination thread ID in the channel. 0 to create a new one. None if not thread.
 
-'''
-A standalone asynchronous function definition
-'''
-async def async_func(t: float) -> None:
-    print(f"Asynchronously Sleep for {t} seconds...")
-    await asyncio.sleep(t)
+    Return:
+        Success     bool            Whether this operation is successful
+        thread_id   Optional[int]   Destination thread ID. If it's not a thread, None.
+    """
+    # Initialise variables to be used
+    msg_text: str = orig_msg.content
+    msg_embeds: list[interactions.Embed] = orig_msg.embeds
+    msg_attachments: list[interactions.Asset] = orig_msg.attachments
+    msg_author: interactions.User = orig_msg.author
+    author_avatar: interactions.Asset = msg_author.display_avatar
+    author_name: str = msg_author.display_name
+    channel_name: str = orig_msg.channel.name
 
-'''
-A function try to call the objects from the other modules
-'''
-async def misc_func() -> None:
-    print(library_package.library_module.pi)
-    print(library_package.library_module.mut_list)
-    library_package.library_module.sync_func(3)
-    await library_package.library_module.aynsc_func(4)
-    cc = library_package.library_module.ExampleLibrary()
-    cc.append(4)
-    await cc.got_b()
-    print(cc.a, cc.b)
+    thread: interactions.Snowflake_Type = None
+    thread_name: Optional[str] = None
+    output_thread_id: Optional[int] = None
 
-'''
-Library Class definition
-'''
-class ExampleLibrary:
-    __slots__ = ["a", "b"]
+    # Check destination channel type
+    if not (isinstance(dest_chan, interactions.GuildText) or isinstance(dest_chan, interactions.GuildForum)):
+        return False, None
+    # Get destination channel webhook. If not present, create one.
+    webhook: interactions.Webhook = await fetch_create_webhook(dest_chan=dest_chan)
 
-    a: list[Any] = []
-    b: int = 0
+    if thread_id is None:
+        pass
+    elif thread_id == 0:
+        thread_name = channel_name
+    else:
+        thread = thread_id
+    
+    sent_msg = await webhook.send(
+        content=msg_text,
+        embeds=msg_embeds,
+        files=msg_attachments,
+        username=author_name,
+        avatar_url=author_avatar.url,
+        thread=thread,
+        thread_name=thread_name
+    )
+    if isinstance(sent_msg.channel, interactions.ThreadChannel):
+        output_thread_id = sent_msg.channel.id
 
-    def __init__(self, a: Optional[list] = None, b: int = 0) -> None:
-        if a is None:
-            self.a = []
-        else:
-            self.a = a
-        self.b = b
+    return True, output_thread_id
 
-    def append(self, i: Any) -> list[Any]:
-        '''
-        Synchronous class method
-        '''
-        self.a.append(i)
-        return self.a
+async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Union[interactions.GuildText, interactions.GuildForum]) -> None:
+    """
+    Migrate a thread to a target channel. It's only limited to thread in GuildText and GuildForumPost types.
+    """
+    if not (isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)):
+        return
+    history_iterator: interactions.ChannelHistory = orig_thread.history(0)
+    history_list: list[interactions.Message] = await history_iterator.flatten()
+    history_list.reverse()
+    parent_msg: interactions.Message = None
+    thread_id: int = 0
+    if isinstance(orig_thread, interactions.GuildForumPost):
+        orig_thread: interactions.GuildForumPost = cast(interactions.GuildForumPost, orig_thread)
+        if orig_thread.initial_post is not None:
+            parent_msg = orig_thread.initial_post
+    elif isinstance(orig_thread, interactions.ThreadChannel):
+        if orig_thread.parent_message is not None:
+            parent_msg = orig_thread.parent_message
+    else:
+        return
+    
+    # Create thread
+    if parent_msg is None:
+        webhook = await fetch_create_webhook(dest_chan=dest_chan)
+        sent_msg = await webhook.send(
+            content="This message has been deleted by original author",
+            thread=None,
+            thread_name=orig_thread.name
+        )
+        thread_id = sent_msg.channel.id
+    for i, msg in enumerate(history_list):
+        if i == 0 and parent_msg is not None and msg != parent_msg:
+            ok, thread_id = await migrate_message(parent_msg, dest_chan, thread_id)
+        ok, thread_id = await migrate_message(msg, dest_chan, thread_id)
+        if not ok and thread_id is None:
+            break
 
-    async def got_b(self) -> int:
-        '''
-        Asynchronous class method
-        '''
-        await asyncio.sleep(1)
-        return self.b
+async def migrate_channel(orig_chan: Union[interactions.GuildText, interactions.GuildForum], dest_chan: Union[interactions.GuildText, interactions.GuildForum], client: interactions.Client) -> None:
+    """
+    Migrate a channel to another destination channel. It's only limited to GuildText and GuildForum.
+    """
+    ...
+    if isinstance(orig_chan, interactions.GuildForum):
+        if not isinstance(dest_chan, interactions.GuildForum):
+            return
+        orig_chan: interactions.GuildForum = cast(interactions.GuildForum, orig_chan)
+        _archived_posts = await client.http.list_public_archived_threads(orig_chan.id)
+        archived_posts_id: list[int] = [int(_["id"]) for _ in _posts["threads"]]
+        archived_posts_id.reverse()
+        for i in archived_posts_id:
+            post = await orig_chan.fetch_post(id=i)
+            await migrate_thread(post, dest_chan)
+        active_posts: list[interactions.GuildForumPost] = await orig_chan.fetch_posts()
+        active_posts.reverse()
+        for post in active_posts:
+            await migrate_thread(post, dest_chan)
+    elif isinstance(orig_chan, interactions.GuildText):
+        if not isinstance(dest_chan, interactions.GuildText):
+            return
+        orig_chan: interactions.GuildText = cast(interactions.GuildText, orig_chan)
+        raise NotImplementedError("GuildText channel migration not implemented yet")

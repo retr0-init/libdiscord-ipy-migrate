@@ -1,0 +1,5 @@
+# 20240815
+- Implemented message migrate (DRAFT)
+- Implemented thread migrate (DRAFT)
+- Implemented GuildForum migrate (DRAFT)
+- GuildText migrate (TODO)
