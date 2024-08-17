@@ -99,18 +99,19 @@ async def fetch_create_webhook(dest_chan: interactions.WebhookMixin) -> interact
     
     return webhook
 
-async def migrate_message(orig_msg: interactions.Message, dest_chan: interactions.GuildChannel, thread_id: Optional[int] = None) -> tuple[bool, Optional[int]]:
+async def migrate_message(orig_msg: interactions.Message, dest_chan: interactions.GuildChannel, thread_id: Optional[int] = None) -> tuple[bool, Optional[int], Optional[interactions.Message]]:
     """
     Migrate a message to target channel. Only supports GuildText and GuildForum
 
     Parameters:
-        orig_msg    Message         The original message object
-        dest_chan   GuildChannel    Destination channel
-        thread_id   Optional[int]   (Default: None) Destination thread ID in the channel. 0 to create a new one. None if not thread.
+        orig_msg    Message             The original message object
+        dest_chan   GuildChannel        Destination channel
+        thread_id   Optional[int]       (Default: None) Destination thread ID in the channel. 0 to create a new one. None if not thread.
 
     Return:
-        Success     bool            Whether this operation is successful
-        thread_id   Optional[int]   Destination thread ID. If it's not a thread, None.
+        Success     bool                Whether this operation is successful
+        thread_id   Optional[int]       Destination thread ID. If it's not a thread, None.
+        dest_msg    Optional[Message]   The sent message
     """
     # Initialise variables to be used
     msg_text: str = orig_msg.content
@@ -163,7 +164,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
             output_thread_id = sent_msg.channel.id
         ref_msg = deepcopy(sent_msg)
 
-    return True, output_thread_id
+    return True, output_thread_id, ref_msg
 
 async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Union[interactions.GuildText, interactions.GuildForum]) -> None:
     """
@@ -188,16 +189,26 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
     # Create thread
     if parent_msg is None:
         webhook = await fetch_create_webhook(dest_chan=dest_chan)
-        sent_msg = await webhook.send(
-            content="This message has been deleted by original author",
-            thread=None,
-            thread_name=orig_thread.name
-        )
-        thread_id = sent_msg.channel.id
+        if isinstance(dest_chan, interactions.GuildForum):
+            sent_msg = await webhook.send(
+                content="This message has been deleted by original author",
+                thread=None,
+                thread_name=orig_thread.name
+            )
+            thread_id = sent_msg.channel.id
+        elif isinstance(dest_chan, interactions.GuildText):
+            sent_msg = await webhook.send(
+                content="This message has been deleted by original author"
+            )
+            sent_thread = await sent_msg.create_thread(
+                name=orig_thread.name,
+                reason="Message migration"
+            )
+            thread_id = sent_thread.id
     for i, msg in enumerate(history_list):
         if i == 0 and parent_msg is not None and msg != parent_msg:
-            ok, thread_id = await migrate_message(parent_msg, dest_chan, thread_id)
-        ok, thread_id = await migrate_message(msg, dest_chan, thread_id)
+            ok, thread_id, _ = await migrate_message(parent_msg, dest_chan, thread_id)
+        ok, thread_id, _ = await migrate_message(msg, dest_chan, thread_id)
         if not ok and thread_id is None:
             break
 
@@ -224,7 +235,9 @@ async def migrate_channel(orig_chan: Union[interactions.GuildText, interactions.
         if not isinstance(dest_chan, interactions.GuildText):
             return
         orig_chan: interactions.GuildText = cast(interactions.GuildText, orig_chan)
-        raise NotImplementedError("GuildText channel migration not implemented yet")
         messages: list[interactions.Message] = await flatten_history_iterator(orig_chan.history(0), reverse=True)
         for msg in messages:
-            ...
+            if msg.thread:
+                await migrate_thread(msg.thread, dest_chan)
+            else:
+                await migrate_message(msg, dest_chan)
