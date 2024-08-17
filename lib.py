@@ -180,7 +180,7 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
         orig_thread: interactions.GuildForumPost = cast(interactions.GuildForumPost, orig_thread)
         if orig_thread.initial_post is not None:
             parent_msg = orig_thread.initial_post
-    elif isinstance(orig_thread, interactions.ThreadChannel):
+    elif isinstance(orig_thread, interactions.GuildPublicThread):
         if orig_thread.parent_message is not None:
             parent_msg = orig_thread.parent_message
     else:
@@ -206,8 +206,16 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
             )
             thread_id = sent_thread.id
     for i, msg in enumerate(history_list):
-        if i == 0 and parent_msg is not None and msg != parent_msg:
-            ok, thread_id, _ = await migrate_message(parent_msg, dest_chan, thread_id)
+        if i == 0:
+            if isinstance(orig_thread, interactions.GuildForumPost) and parent_msg is not None and msg != parent_msg:
+                ok, thread_id, _ = await migrate_message(parent_msg, dest_chan, thread_id)
+            elif isinstance(orig_thread, interactions.GuildPublicThread) and parent_msg is not None:
+                ok, _, sent_msg = await migrate_message(msg, dest_chan)
+                sent_thread = await sent_msg.create_thread(
+                    name = orig_thread.name,
+                    reason = "Message migration"
+                )
+                thread_id = sent_thread.id
         ok, thread_id, _ = await migrate_message(msg, dest_chan, thread_id)
         if not ok and thread_id is None:
             break
