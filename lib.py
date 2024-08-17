@@ -20,6 +20,12 @@ import interactions
 from typing import Optional, cast, Union
 from copy import deepcopy
 
+"Highly recommended - we suggest providing proper debug logging"
+from src import logutil
+
+"Change this if you'd like - this labels log messages for debug mode"
+logger = logutil.init_logger(os.path.basename(__file__))
+
 webhook_name: str = "DBF"
 webhook_avatar: interactions.Absent[interactions.UPLOADABLE_TYPE] = interactions.MISSING
 
@@ -170,7 +176,8 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
     """
     Migrate a thread to a target channel. It's only limited to thread in GuildText and GuildForumPost types.
     """
-    if not (isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)):
+    if not (isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)) and \
+        not (isinstance(orig_thread, interactions.GuildPublicThread) and isinstance(dest_chan, interactions.GuildText)):
         return
     history_iterator: interactions.ChannelHistory = orig_thread.history(0)
     history_list: list[interactions.Message] = await flatten_history_iterator(history_iterator, reverse=True)
