@@ -18,9 +18,66 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 import interactions
 from typing import Optional, cast, Union
+from copy import deepcopy
 
 webhook_name: str = "DBF"
 webhook_avatar: interactions.Absent[interactions.UPLOADABLE_TYPE] = interactions.MISSING
+
+__MESSAGE_LEN_LIMIT: int = 2000
+
+async def flatten_history_iterator(history: interactions.ChannelHistory, reverse: bool = False) -> list[interactions.Message]:
+    """
+    Flatten the ChannelHistory iteractor while handling all kinds of errors
+
+    Parameters:
+        history         ChannelHistory  Iteractor
+        reverse         bool            (Default False) Whether to output the list from begining to end
+    
+    Return:
+        message_list    list[Message]   List of messages in the list
+    """
+    ret_list: list[interactions.Message] = []
+    while True:
+        try:
+            msg = await history.__anext__()
+            ret_list.append(msg)
+        except StopAsyncIteration:
+            break
+        except interactions.errors.HTTPException as e:
+            try:
+                match int(e.code):
+                    case 50083:
+                        """Operation in archived thread"""
+                        break
+                    case 10003:
+                        """Unknown channel"""
+                        break
+                    case 10008:
+                        """Unknown message"""
+                        pass
+                    case 50001:
+                        """No Access"""
+                        break
+                    case 50013:
+                        """Lack permission"""
+                        break
+                    case 50021:
+                        """Cannot execute on system message"""
+                        pass
+                    case 160005:
+                        """Thread is locked"""
+                        pass
+                    case _:
+                        """Default"""
+                        pass
+            except ValueError:
+                pass
+        except Exception:
+            pass
+    if reverse:
+        ret_list.reverse()
+    return ret_list
+
 
 async def fetch_create_webhook(dest_chan: interactions.WebhookMixin) -> interactions.Webhook:
     """
@@ -74,6 +131,14 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     # Get destination channel webhook. If not present, create one.
     webhook: interactions.Webhook = await fetch_create_webhook(dest_chan=dest_chan)
 
+    # Get the message the current message is replying to
+    reply_to: Optional[interactions.Message] = orig_msg.get_referenced_message()
+    replied_text: str = ""
+    if reply_to is not None and any(reply_to.type == _ for _ in [interactions.MessageType.DEFAULT, interactions.MessageType.REPLY, interactions.MessageType.THREAD_STARTER_MESSAGE]):
+        msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
+        replied_text: str = f"> **{reply_to.author.display_name}** said:\n" + '\n'.join(msgs_reply_to)
+    msg_text = replied_text + msg_text
+
     if thread_id is None:
         pass
     elif thread_id == 0:
@@ -81,17 +146,22 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     else:
         thread = thread_id
     
-    sent_msg = await webhook.send(
-        content=msg_text,
-        embeds=msg_embeds,
-        files=msg_attachments,
-        username=author_name,
-        avatar_url=author_avatar.url,
-        thread=thread,
-        thread_name=thread_name
-    )
-    if isinstance(sent_msg.channel, interactions.ThreadChannel):
-        output_thread_id = sent_msg.channel.id
+    # Split send the message if the length exceeds limit
+    ref_msg: Optional[interactions.Message] = None
+    for text in (msg_text[0 + i : __MESSAGE_LEN_LIMIT + i] for i in range(0, len(msg_text), __MESSAGE_LEN_LIMIT)):
+        sent_msg = await webhook.send(
+            content=text,
+            embeds=msg_embeds,
+            files=msg_attachments,
+            username=author_name,
+            avatar_url=author_avatar.url,
+            reply_to=ref_msg,
+            thread=thread,
+            thread_name=thread_name
+        )
+        if isinstance(sent_msg.channel, interactions.ThreadChannel):
+            output_thread_id = sent_msg.channel.id
+        ref_msg = deepcopy(sent_msg)
 
     return True, output_thread_id
 
@@ -102,8 +172,7 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
     if not (isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)):
         return
     history_iterator: interactions.ChannelHistory = orig_thread.history(0)
-    history_list: list[interactions.Message] = await history_iterator.flatten()
-    history_list.reverse()
+    history_list: list[interactions.Message] = await flatten_history_iterator(history_iterator, reverse=True)
     parent_msg: interactions.Message = None
     thread_id: int = 0
     if isinstance(orig_thread, interactions.GuildForumPost):
@@ -156,3 +225,6 @@ async def migrate_channel(orig_chan: Union[interactions.GuildText, interactions.
             return
         orig_chan: interactions.GuildText = cast(interactions.GuildText, orig_chan)
         raise NotImplementedError("GuildText channel migration not implemented yet")
+        messages: list[interactions.Message] = await flatten_history_iterator(orig_chan.history(0), reverse=True)
+        for msg in messages:
+            ...

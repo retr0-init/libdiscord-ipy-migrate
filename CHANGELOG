@@ -3,3 +3,8 @@
 - Implemented thread migrate (DRAFT)
 - Implemented GuildForum migrate (DRAFT)
 - GuildText migrate (TODO)
+
+# 20240817
+- Added error handling in `ChannelHistory` iteration (DRAFT)
+- Split send long message (DRAFT)
+- Added "replied" section to messages (DRAFT)
