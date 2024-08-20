@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 import interactions
 from typing import Optional, cast, Union
-from copy import deepcopy
+from copy import copy
 
 "Highly recommended - we suggest providing proper debug logging"
 from src import logutil
@@ -97,7 +97,7 @@ async def fetch_create_webhook(dest_chan: interactions.WebhookMixin) -> interact
     """
     dest_chan: interactions.WebhookMixin = cast(interactions.WebhookMixin, dest_chan)
     webhooks: list[interactions.Webhook] = await dest_chan.fetch_webhooks()
-    available_webhooks: list[interactions.Webhook] = [wh for wh in webhooks if wh.name == webhook_name and wh.type == interactions.WebhookTypes.APPLICATION]
+    available_webhooks: list[interactions.Webhook] = [wh for wh in webhooks if wh.name == webhook_name]
     if len(available_webhooks) == 0:
         webhook: interactions.Webhook = await dest_chan.create_webhook(name=webhook_name, avatar=webhook_avatar)
     else:
@@ -144,7 +144,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     if reply_to is not None and any(reply_to.type == _ for _ in [interactions.MessageType.DEFAULT, interactions.MessageType.REPLY, interactions.MessageType.THREAD_STARTER_MESSAGE]):
         msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
         replied_text: str = f"> **{reply_to.author.display_name}** said:\n" + '\n'.join(msgs_reply_to)
-    msg_text = replied_text + msg_text
+    msg_text = replied_text + "\n" + msg_text
 
     if thread_id is None:
         pass
@@ -163,12 +163,13 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
             username=author_name,
             avatar_url=author_avatar.url,
             reply_to=ref_msg,
+            wait=True,
             thread=thread,
             thread_name=thread_name
         )
         if isinstance(sent_msg.channel, interactions.ThreadChannel):
             output_thread_id = sent_msg.channel.id
-        ref_msg = deepcopy(sent_msg)
+        ref_msg = copy(sent_msg)
 
     return True, output_thread_id, ref_msg
 
@@ -187,7 +188,7 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
         orig_thread: interactions.GuildForumPost = cast(interactions.GuildForumPost, orig_thread)
         if orig_thread.initial_post is not None:
             parent_msg = orig_thread.initial_post
-    elif isinstance(orig_thread, interactions.GuildPublicThread):
+    elif isinstance(orig_thread, interactions.GuildPublicThread) and not isinstance(orig_thread, interactions.GuildForumPost):
         if orig_thread.parent_message is not None:
             parent_msg = orig_thread.parent_message
     else:
@@ -200,12 +201,14 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
             sent_msg = await webhook.send(
                 content="This message has been deleted by original author",
                 thread=None,
-                thread_name=orig_thread.name
+                thread_name=orig_thread.name,
+                wait=True
             )
             thread_id = sent_msg.channel.id
         elif isinstance(dest_chan, interactions.GuildText):
             sent_msg = await webhook.send(
-                content="This message has been deleted by original author"
+                content="This message has been deleted by original author",
+                wait=True
             )
             sent_thread = await sent_msg.create_thread(
                 name=orig_thread.name,
@@ -216,7 +219,7 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
         if i == 0:
             if isinstance(orig_thread, interactions.GuildForumPost) and parent_msg is not None and msg != parent_msg:
                 ok, thread_id, _ = await migrate_message(parent_msg, dest_chan, thread_id)
-            elif isinstance(orig_thread, interactions.GuildPublicThread) and parent_msg is not None:
+            elif (isinstance(orig_thread, interactions.GuildPublicThread) and not isinstance(orig_thread, interactions.GuildForumPost)) and parent_msg is not None:
                 ok, _, sent_msg = await migrate_message(msg, dest_chan)
                 sent_thread = await sent_msg.create_thread(
                     name = orig_thread.name,

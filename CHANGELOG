@@ -1,10 +1,16 @@
 # 20240815
-- Implemented message migrate (DRAFT)
+- Implemented message migrate
 - Implemented thread migrate (DRAFT)
 - Implemented GuildForum migrate (DRAFT)
 
 # 20240817
-- Added error handling in `ChannelHistory` iteration (DRAFT)
+- Added error handling in `ChannelHistory` iteration
 - Split send long message (DRAFT)
-- Added "replied" section to messages (DRAFT)
+- Added "replied" section to messages
 - GuildText migrate (DRAFT)
+
+# 20240821
+- Fixed webhook fetch creation behaviour
+- Webhook send wait to return message object
+- Copy message object instead of deepcopy
+- Precisely test the channel type
