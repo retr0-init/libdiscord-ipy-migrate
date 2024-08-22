@@ -105,6 +105,36 @@ async def fetch_create_webhook(dest_chan: interactions.WebhookMixin) -> interact
     
     return webhook
 
+def convert_poll_to_message(poll: interactions.Poll) -> str:
+    """
+    Convert current poll Q&A with results to postable message text.
+
+    Parameters:
+        poll    Poll    Discord Poll object
+
+    Return:
+        message str     Converted message string
+    """
+    ...
+    def poll_media_to_str(poll_media: interactions.PollMedia) -> str:
+        ret: str = ""
+        if poll_media.emoji and poll_media.emoji.name:
+            ret += poll_media.emoji.name
+        if poll_media.text:
+            ret += poll_media.text
+        return ret
+    
+    question_str: str = poll_media_to_str(poll.question)
+    answers: tuple[str] = (poll_media_to_str(pa.poll_media) for pa in poll.answers)
+    if poll.results:
+        results: tuple[int] = (ac.count for ac in poll.results.answer_counts)
+        answers = (f"{i:04d} - {j}" for i, j in zip(results, answers))
+    final_str: str = question_str + "\n" + "\n".join(answers)
+    if poll.results:
+        final_str = f"(Poll finished) {final_str}"
+
+    return final_str
+
 async def migrate_message(orig_msg: interactions.Message, dest_chan: interactions.GuildChannel, thread_id: Optional[int] = None) -> tuple[bool, Optional[int], Optional[interactions.Message]]:
     """
     Migrate a message to target channel. Only supports GuildText and GuildForum
@@ -143,7 +173,10 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     reply_to: Optional[interactions.Message] = orig_msg.get_referenced_message()
     replied_text: str = ""
     if reply_to is not None and any(reply_to.type == _ for _ in [interactions.MessageType.DEFAULT, interactions.MessageType.REPLY, interactions.MessageType.THREAD_STARTER_MESSAGE]):
-        msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
+        if reply_to.poll:
+            msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in convert_poll_to_message(reply_to.poll).splitlines(False)]
+        else:
+            msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
         replied_text: str = f"> **{reply_to.author.display_name}** said:\n" + '\n'.join(msgs_reply_to)
     msg_text = replied_text + "\n" + msg_text
 
@@ -156,6 +189,9 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         available_stickers = [sticker for sticker in all_stickers if any(sticker.name == i.name for i in orig_msg.sticker_items)]
         if len(available_stickers) < len(orig_msg.sticker_items):
             msg_text = f"Sticker {','.join(i.name for i in orig_msg.sticker_items if not any(i.name == s.name for s in available_stickers))} not available\n" + msg_text
+
+    if orig_msg.poll:
+        msg_text = convert_poll_to_message(orig_msg.poll) + "\n" + msg_text
 
     if thread_id is None:
         pass
