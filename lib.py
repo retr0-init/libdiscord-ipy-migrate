@@ -177,8 +177,8 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
     """
     Migrate a thread to a target channel. It's only limited to thread in GuildText and GuildForumPost types.
     """
-    if not (isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)) and \
-        not (isinstance(orig_thread, interactions.GuildPublicThread) and isinstance(dest_chan, interactions.GuildText)):
+    if not ((isinstance(orig_thread, interactions.GuildForumPost) and isinstance(dest_chan, interactions.GuildForum)) or \
+        ((isinstance(orig_thread, interactions.GuildPublicThread) and not isinstance(orig_thread, interactions.GuildForumPost)) and isinstance(dest_chan, interactions.GuildText))):
         return
     history_iterator: interactions.ChannelHistory = orig_thread.history(0)
     history_list: list[interactions.Message] = await flatten_history_iterator(history_iterator, reverse=True)
@@ -226,6 +226,8 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
                     reason = "Message migration"
                 )
                 thread_id = sent_thread.id
+        if len(msg.content) == 0:
+            continue
         ok, thread_id, _ = await migrate_message(msg, dest_chan, thread_id)
         if not ok and thread_id is None:
             break
