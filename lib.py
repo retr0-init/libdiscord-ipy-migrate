@@ -146,8 +146,10 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
         replied_text: str = f"> **{reply_to.author.display_name}** said:\n" + '\n'.join(msgs_reply_to)
     msg_text = replied_text + "\n" + msg_text
-    attachment_url: str = "\n".join(i.url for i in msg_attachments)
-    msg_text = attachment_url + "\n" + msg_text
+
+    if msg_attachments:
+        attachment_url: str = "\n".join(i.url for i in msg_attachments)
+        msg_text = attachment_url + "\n" + msg_text
     
     if orig_msg.sticker_items:
         all_stickers = await dest_chan.guild.fetch_all_custom_stickers()
@@ -180,6 +182,9 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
             output_thread_id = sent_msg.channel.id
 
     return True, output_thread_id, sent_msg
+
+def is_empty_message(msg: interactions.Message) -> bool:
+    return not any((msg.content, msg.embeds, msg.poll, msg.reactions, msg.sticker_items))
 
 async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Union[interactions.GuildText, interactions.GuildForum]) -> None:
     """
@@ -228,13 +233,13 @@ async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Uni
             if isinstance(orig_thread, interactions.GuildForumPost) and parent_msg is not None and msg != parent_msg:
                 ok, thread_id, _ = await migrate_message(parent_msg, dest_chan, thread_id)
             elif (isinstance(orig_thread, interactions.GuildPublicThread) and not isinstance(orig_thread, interactions.GuildForumPost)) and parent_msg is not None:
-                ok, _, sent_msg = await migrate_message(msg, dest_chan)
+                ok, _, sent_msg = await migrate_message(parent_msg, dest_chan)
                 sent_thread = await sent_msg.create_thread(
                     name = orig_thread.name,
                     reason = "Message migration"
                 )
                 thread_id = sent_thread.id
-        if len(msg.content) == 0:
+        if is_empty_message(msg):
             continue
         ok, thread_id, _ = await migrate_message(msg, dest_chan, thread_id)
         if not ok and thread_id is None:
