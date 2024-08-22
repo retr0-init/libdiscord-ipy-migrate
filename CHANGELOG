@@ -5,7 +5,8 @@
 
 # 20240817
 - Added error handling in `ChannelHistory` iteration
-- Split send long message (DRAFT)
+- Split send long message
+  - Can't reply to a webhook message (Limitation of Discord API)
 - Added "replied" section to messages
 - GuildText migrate (DRAFT)
 

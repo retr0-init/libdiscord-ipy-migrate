@@ -18,7 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 import interactions
 from typing import Optional, cast, Union
-from copy import copy
 
 "Highly recommended - we suggest providing proper debug logging"
 from src import logutil
@@ -154,7 +153,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         thread = thread_id
     
     # Split send the message if the length exceeds limit
-    ref_msg: Optional[interactions.Message] = None
+    ref_msg: Optional[int] = None
     for text in (msg_text[0 + i : __MESSAGE_LEN_LIMIT + i] for i in range(0, len(msg_text), __MESSAGE_LEN_LIMIT)):
         sent_msg = await webhook.send(
             content=text,
@@ -169,7 +168,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         )
         if isinstance(sent_msg.channel, interactions.ThreadChannel):
             output_thread_id = sent_msg.channel.id
-        ref_msg = copy(sent_msg)
+        ref_msg = sent_msg.id
 
     return True, output_thread_id, ref_msg
 
