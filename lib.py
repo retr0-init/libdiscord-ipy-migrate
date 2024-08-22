@@ -153,7 +153,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         thread = thread_id
     
     # Split send the message if the length exceeds limit
-    ref_msg: Optional[int] = None
+    sent_msg: Optional[int] = None
     for text in (msg_text[0 + i : __MESSAGE_LEN_LIMIT + i] for i in range(0, len(msg_text), __MESSAGE_LEN_LIMIT)):
         sent_msg = await webhook.send(
             content=text,
@@ -161,16 +161,15 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
             files=msg_attachments,
             username=author_name,
             avatar_url=author_avatar.url,
-            reply_to=ref_msg,
+            reply_to=sent_msg,
             wait=True,
             thread=thread,
             thread_name=thread_name
         )
         if isinstance(sent_msg.channel, interactions.ThreadChannel):
             output_thread_id = sent_msg.channel.id
-        ref_msg = sent_msg.id
 
-    return True, output_thread_id, ref_msg
+    return True, output_thread_id, sent_msg
 
 async def migrate_thread(orig_thread: interactions.ThreadChannel, dest_chan: Union[interactions.GuildText, interactions.GuildForum]) -> None:
     """
