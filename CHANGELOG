@@ -15,3 +15,6 @@
 - Webhook send wait to return message object
 - Copy message object instead of deepcopy
 - Precisely test the channel type
+
+# 20240822
+- Custom Sticker support

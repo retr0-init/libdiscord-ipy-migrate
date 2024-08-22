@@ -130,6 +130,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     thread: interactions.Snowflake_Type = None
     thread_name: Optional[str] = None
     output_thread_id: Optional[int] = None
+    available_stickers: Optional[list[interactions.Sticker]] = None
 
     # Check destination channel type
     if not (isinstance(dest_chan, interactions.GuildText) or isinstance(dest_chan, interactions.GuildForum)):
@@ -144,6 +145,14 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         msgs_reply_to: list[str] = ["> " + msg_reply_to for msg_reply_to in reply_to.content.splitlines(False)]
         replied_text: str = f"> **{reply_to.author.display_name}** said:\n" + '\n'.join(msgs_reply_to)
     msg_text = replied_text + "\n" + msg_text
+    attachment_url: str = "\n".join(i.url for i in msg_attachments)
+    msg_text = attachment_url + "\n" + msg_text
+    
+    if orig_msg.sticker_items:
+        all_stickers = await dest_chan.guild.fetch_all_custom_stickers()
+        available_stickers = [sticker for sticker in all_stickers if any(sticker.name == i.name for i in orig_msg.sticker_items)]
+        if len(available_stickers) < len(orig_msg.sticker_items):
+            msg_text = f"Sticker {','.join(i.name for i in orig_msg.sticker_items if not any(i.name == s.name for s in available_stickers))} not available\n" + msg_text
 
     if thread_id is None:
         pass
@@ -158,8 +167,8 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
         sent_msg = await webhook.send(
             content=text,
             embeds=msg_embeds,
-            files=msg_attachments,
             username=author_name,
+            stickers=available_stickers,
             avatar_url=author_avatar.url,
             reply_to=sent_msg,
             wait=True,
