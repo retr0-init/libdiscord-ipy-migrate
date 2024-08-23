@@ -115,19 +115,20 @@ def convert_poll_to_message(poll: interactions.Poll) -> str:
     Return:
         message str     Converted message string
     """
-    ...
     def poll_media_to_str(poll_media: interactions.PollMedia) -> str:
         ret: str = ""
-        if poll_media.emoji and poll_media.emoji.name:
-            ret += poll_media.emoji.name
-        if poll_media.text:
-            ret += poll_media.text
+        if isinstance(poll_media, interactions.PollMedia):
+            poll_media = poll_media.to_dict()
+        if 'emoji' in poll_media.keys() and poll_media['emoji'].name:
+            ret += poll_media["emoji"].name
+        if 'text' in poll_media.keys():
+            ret += " " + poll_media['text']
         return ret
     
     question_str: str = poll_media_to_str(poll.question)
-    answers: tuple[str] = (poll_media_to_str(pa.poll_media) for pa in poll.answers)
+    answers: list[str] = [poll_media_to_str(pa.poll_media) for pa in poll.answers]
     if poll.results:
-        results: tuple[int] = (ac.count for ac in poll.results.answer_counts)
+        results: list[int] = [ac.count for ac in poll.results.answer_counts]
         answers = (f"{i:04d} - {j}" for i, j in zip(results, answers))
     final_str: str = question_str + "\n" + "\n".join(answers)
     if poll.results:
