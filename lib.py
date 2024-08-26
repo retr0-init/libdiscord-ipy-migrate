@@ -119,8 +119,11 @@ def convert_poll_to_message(poll: interactions.Poll) -> str:
         ret: str = ""
         if isinstance(poll_media, interactions.PollMedia):
             poll_media = poll_media.to_dict()
-        if 'emoji' in poll_media.keys() and poll_media['emoji'].name:
-            ret += poll_media["emoji"].name
+        if 'emoji' in poll_media.keys() and poll_media['emoji']:
+            if 'id' in poll_media['emoji']:
+                ret += f"<:{poll_media['emoji']['name']}:{poll_media['emoji']['id']}>"
+            else:
+                ret += poll_media["emoji"]['name']
         if 'text' in poll_media.keys():
             ret += " " + poll_media['text']
         return ret
