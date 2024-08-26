@@ -1,14 +1,14 @@
 # 20240815
 - Implemented message migrate
 - Implemented thread migrate
-- Implemented GuildForum migrate (DRAFT)
+- Implemented GuildForum migrate
 
 # 20240817
 - Added error handling in `ChannelHistory` iteration
 - Split send long message
   - Can't reply to a webhook message (Limitation of Discord API)
 - Added "replied" section to messages
-- GuildText migrate (DRAFT)
+- GuildText migrate
 
 # 20240821
 - Fixed webhook fetch creation behaviour
@@ -20,7 +20,6 @@
 - Custom Sticker support
 - Properly judge empty message
 - Combined error handling for message migration
-- Poll message support (DRAFT)
-  - Update PollMedia object serialise method
-  - Can't get current status (TODO)
-  - Can't get answers (TODO)
+- Poll message support
+- Update PollMedia object serialise method
+- Cannot migrate stickers properly (TODO)

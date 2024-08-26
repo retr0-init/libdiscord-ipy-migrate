@@ -343,7 +343,7 @@ async def migrate_channel(orig_chan: Union[interactions.GuildText, interactions.
             return
         orig_chan: interactions.GuildForum = cast(interactions.GuildForum, orig_chan)
         _archived_posts = await client.http.list_public_archived_threads(orig_chan.id)
-        archived_posts_id: list[int] = [int(_["id"]) for _ in _posts["threads"]]
+        archived_posts_id: list[int] = [int(_["id"]) for _ in _archived_posts["threads"]]
         archived_posts_id.reverse()
         for i in archived_posts_id:
             post = await orig_chan.fetch_post(id=i)
