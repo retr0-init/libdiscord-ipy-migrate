@@ -22,4 +22,4 @@
 - Combined error handling for message migration
 - Poll message support
 - Update PollMedia object serialise method
-- Handle Sticker properly (DRAFT)
+- Handle Sticker properly
