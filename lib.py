@@ -207,18 +207,66 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     # Split send the message if the length exceeds limit
     sent_msg: Optional[int] = None
     for text in (msg_text[0 + i : __MESSAGE_LEN_LIMIT + i] for i in range(0, len(msg_text), __MESSAGE_LEN_LIMIT)):
-        sent_msg = await webhook.send(
-            content=text,
-            embeds=msg_embeds,
-            username=author_name,
-            stickers=available_stickers,
-            avatar_url=author_avatar.url,
-            reply_to=sent_msg,
-            wait=True,
-            thread=thread,
-            thread_name=thread_name
-        )
-        if isinstance(sent_msg.channel, interactions.ThreadChannel):
+        try:
+            sent_msg = await webhook.send(
+                content=text,
+                embeds=msg_embeds,
+                username=author_name,
+                stickers=available_stickers,
+                avatar_url=author_avatar.url,
+                reply_to=sent_msg,
+                wait=True,
+                thread=thread,
+                thread_name=thread_name
+            )
+        except interactions.errors.HTTPException as e:
+            if e.code is None:
+                reason_text: str = "of unknown error code"
+            else:
+                match int(e.code):
+                    case 50083:
+                        """Operation in archived thread"""
+                        reason_text: str = "This thread is archived"
+                    case 10003:
+                        """Unknown channel"""
+                        reason_text: str = "The channel is unknown"
+                        return
+                    case 10008:
+                        """Unknown message"""
+                        reason_text: str = "The message is unknown"
+                        return
+                    case 50001:
+                        """No Access"""
+                        reason_text: str = "The bot has no access"
+                        return
+                    case 50006:
+                        """Cannot send an empty message"""
+                        reason_text: str = "Cannot send an empty message"
+                    case 50013:
+                        """Lack permission"""
+                        reason_text: str = "The bot lacks the write permission to this channel"
+                        return
+                    case 50021:
+                        """Cannot execute on system message"""
+                        reason_text: str = "This thread is archived"
+                        pass
+                    case 160005:
+                        """Thread is locked"""
+                        reason_text: str = "This thread is locked"
+                        pass
+                    case _:
+                        """Default"""
+                        reason_text: str = f"Unknown error {e.code}"
+                        pass
+            sent_msg = await webhook.send(
+                content=f"Message {orig_msg.jump_url} {orig_msg.id} cannot be migrated because {reason_text}",
+                username=author_name,
+                avatar_url=author_avatar.url,
+                wait=True,
+                thread=thread,
+                thread_name=thread_name
+            )
+        if sent_msg and isinstance(sent_msg.channel, interactions.ThreadChannel):
             output_thread_id = sent_msg.channel.id
 
     return True, output_thread_id, sent_msg

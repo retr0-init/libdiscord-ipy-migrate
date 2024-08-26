@@ -19,6 +19,7 @@
 # 20240822
 - Custom Sticker support
 - Properly judge empty message
+- Combined error handling for message migration
 - Poll message support (DRAFT)
   - Update PollMedia object serialise method
   - Can't get current status (TODO)
