@@ -190,9 +190,11 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
     
     if orig_msg.sticker_items:
         all_stickers = await dest_chan.guild.fetch_all_custom_stickers()
-        available_stickers = [sticker for sticker in all_stickers if any(sticker.name == i.name for i in orig_msg.sticker_items)]
-        if len(available_stickers) < len(orig_msg.sticker_items):
-            msg_text = f"Sticker {','.join(i.name for i in orig_msg.sticker_items if not any(i.name == s.name for s in available_stickers))} not available\n" + msg_text
+        available_stickers = [sticker for sticker in all_stickers if any(sticker.id == i.id or sticker.name == i.name for i in orig_msg.sticker_items)]
+        if orig_msg.sticker_items and len(available_stickers) < len(orig_msg.sticker_items):
+            msg_text = f"Sticker {','.join(i.name for i in orig_msg.sticker_items if not any(i.id == s.id or i.name == s.name for s in available_stickers))} not available\n" + msg_text
+        for s in available_stickers:
+            msg_text = f"{s.url}\n" + msg_text
 
     if orig_msg.poll:
         msg_text = convert_poll_to_message(orig_msg.poll) + "\n" + msg_text
@@ -212,7 +214,6 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
                 content=text,
                 embeds=msg_embeds,
                 username=author_name,
-                stickers=available_stickers,
                 avatar_url=author_avatar.url,
                 reply_to=sent_msg,
                 wait=True,
