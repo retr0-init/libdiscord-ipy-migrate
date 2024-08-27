@@ -338,7 +338,6 @@ async def migrate_channel(orig_chan: Union[interactions.GuildText, interactions.
     """
     Migrate a channel to another destination channel. It's only limited to GuildText and GuildForum.
     """
-    ...
     if isinstance(orig_chan, interactions.GuildForum):
         if not isinstance(dest_chan, interactions.GuildForum):
             return
