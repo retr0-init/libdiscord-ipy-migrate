@@ -23,3 +23,6 @@
 - Poll message support
 - Update PollMedia object serialise method
 - Handle Sticker properly
+
+# 20240829
+- Disallow any mentions in migrated messages

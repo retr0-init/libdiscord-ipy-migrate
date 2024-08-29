@@ -216,6 +216,7 @@ async def migrate_message(orig_msg: interactions.Message, dest_chan: interaction
                 username=author_name,
                 avatar_url=author_avatar.url,
                 reply_to=sent_msg,
+                allowed_mentions=interactions.AllowedMentions.none(),
                 wait=True,
                 thread=thread,
                 thread_name=thread_name
